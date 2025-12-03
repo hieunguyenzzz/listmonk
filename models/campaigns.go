@@ -24,6 +24,7 @@ const (
 	CampaignStatusCancelled     = "cancelled"
 	CampaignTypeRegular         = "regular"
 	CampaignTypeOptin           = "optin"
+	CampaignTypeAutoresponder   = "autoresponder"
 	CampaignContentTypeRichtext = "richtext"
 	CampaignContentTypeHTML     = "html"
 	CampaignContentTypeMarkdown = "markdown"
@@ -56,8 +57,9 @@ type Campaign struct {
 	Messenger         string          `db:"messenger" json:"messenger"`
 	Archive           bool            `db:"archive" json:"archive"`
 	ArchiveSlug       null.String     `db:"archive_slug" json:"archive_slug"`
-	ArchiveTemplateID null.Int        `db:"archive_template_id" json:"archive_template_id"`
-	ArchiveMeta       json.RawMessage `db:"archive_meta" json:"archive_meta"`
+	ArchiveTemplateID  null.Int        `db:"archive_template_id" json:"archive_template_id"`
+	ArchiveMeta        json.RawMessage `db:"archive_meta" json:"archive_meta"`
+	ARTriggerOnConfirm bool            `db:"ar_trigger_on_confirm" json:"ar_trigger_on_confirm"`
 
 	// TemplateBody is joined in from templates by the next-campaigns query.
 	TemplateBody        string             `db:"template_body" json:"-"`

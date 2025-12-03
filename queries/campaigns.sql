@@ -25,7 +25,8 @@ WITH tpl AS (
 camp AS (
     INSERT INTO campaigns (uuid, type, name, subject, from_email, body, altbody,
         content_type, send_at, headers, tags, messenger, template_id, to_send,
-        max_subscriber_id, archive, archive_slug, archive_template_id, archive_meta, body_source)
+        max_subscriber_id, archive, archive_slug, archive_template_id, archive_meta, body_source,
+        ar_trigger_on_confirm)
         SELECT $1, $2, $3, $4, $5,
             -- body
             COALESCE(NULLIF($6, ''), (SELECT body FROM tpl), ''),
@@ -40,7 +41,9 @@ camp AS (
             $17,
             $18,
             -- body_source
-            COALESCE($20, (SELECT body_source FROM tpl))
+            COALESCE($20, (SELECT body_source FROM tpl)),
+            -- ar_trigger_on_confirm
+            $21
         RETURNING id
 ),
 med AS (
@@ -184,6 +187,7 @@ WITH camps AS (
     FROM campaigns
     LEFT JOIN templates ON (templates.id = campaigns.template_id)
     WHERE (status='running' OR (status='scheduled' AND NOW() >= campaigns.send_at))
+    AND campaigns.type != 'autoresponder'
     AND NOT(campaigns.id = ANY($1::INT[]))
 ),
 campLists AS (
@@ -380,6 +384,7 @@ WITH camp AS (
         archive_template_id=(CASE WHEN $7::content_type = 'visual' THEN NULL ELSE $16::INT END),
         archive_meta=$17,
         body_source=$19,
+        ar_trigger_on_confirm=$20,
         updated_at=NOW()
     WHERE id = $1 RETURNING id
 ),

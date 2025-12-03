@@ -237,6 +237,45 @@ func (m *Manager) HasMessenger(id string) bool {
 	return ok
 }
 
+// SendAutoresponder sends a single autoresponder campaign to a specific subscriber.
+// This is used for triggered autoresponder campaigns.
+func (m *Manager) SendAutoresponder(camp *models.Campaign, sub models.Subscriber) error {
+	// Validate messenger.
+	if _, ok := m.messengers[camp.Messenger]; !ok {
+		return fmt.Errorf("unknown messenger %s on campaign %s", camp.Messenger, camp.Name)
+	}
+
+	// Compile the template if not already compiled.
+	if camp.Tpl == nil {
+		if err := camp.CompileTemplate(m.TemplateFuncs(camp)); err != nil {
+			m.log.Printf("error compiling autoresponder template: %v", err)
+			return err
+		}
+	}
+
+	// Load any media/attachments.
+	if err := m.attachMedia(camp); err != nil {
+		m.log.Printf("error loading autoresponder attachments: %v", err)
+		return err
+	}
+
+	// Create the message for this subscriber.
+	msg, err := m.NewCampaignMessage(camp, sub)
+	if err != nil {
+		m.log.Printf("error creating autoresponder message: %v", err)
+		return err
+	}
+
+	// Push the message to the queue.
+	if err := m.PushCampaignMessage(msg); err != nil {
+		m.log.Printf("error pushing autoresponder message: %v", err)
+		return err
+	}
+
+	m.log.Printf("sent autoresponder '%s' to %s", camp.Name, sub.Email)
+	return nil
+}
+
 // HasRunningCampaigns checks if there are any active campaigns.
 func (m *Manager) HasRunningCampaigns() bool {
 	m.pipesMut.Lock()

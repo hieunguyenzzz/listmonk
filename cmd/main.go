@@ -239,6 +239,9 @@ func main() {
 	// Start cronjobs.
 	initCron(core, db)
 
+	// Set up the autoresponder hook now that both core and manager are available.
+	core.SetAutoresponderHook(makeAutoresponderHook(core, mgr))
+
 	// Start the campaign manager workers. The campaign batches (fetch from DB, push out
 	// messages) get processed at the specified interval.
 	go mgr.Run()

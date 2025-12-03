@@ -354,6 +354,13 @@ func (c *Core) InsertSubscriber(sub models.Subscriber, listIDs []int, listUUIDs 
 		})
 	}
 
+	// Trigger autoresponders for subscriptions.
+	// For campaigns with ar_trigger_on_confirm=false, they fire immediately on subscription.
+	// For campaigns with ar_trigger_on_confirm=true, they fire on confirmation (handled separately).
+	if c.h.TriggerAutoresponders != nil && len(listIDs) > 0 {
+		_ = c.h.TriggerAutoresponders(out, listIDs, false) // isConfirmation=false
+	}
+
 	return out, hasOptin, nil
 }
 
@@ -440,6 +447,13 @@ func (c *Core) UpdateSubscriberWithLists(id int, sub models.Subscriber, listIDs 
 			return out, hasOptin, err
 		}
 		hasOptin = num > 0
+	}
+
+	// Trigger autoresponders for subscriptions.
+	// For campaigns with ar_trigger_on_confirm=false, they fire immediately on subscription.
+	// For campaigns with ar_trigger_on_confirm=true, they fire on confirmation (handled separately).
+	if c.h.TriggerAutoresponders != nil && len(listIDs) > 0 {
+		_ = c.h.TriggerAutoresponders(out, listIDs, false) // isConfirmation=false
 	}
 
 	return out, hasOptin, nil
@@ -541,6 +555,22 @@ func (c *Core) ConfirmOptionSubscription(subUUID string, listUUIDs []string, met
 			"subscriber_uuid": subUUID,
 			"list_uuids":      listUUIDs,
 		})
+	}
+
+	// Trigger autoresponders for opt-in confirmation.
+	if c.h.TriggerAutoresponders != nil && len(listUUIDs) > 0 {
+		// Fetch subscriber and lists to trigger autoresponders.
+		sub, err := c.GetSubscriber(0, subUUID, "")
+		if err == nil {
+			lists, err := c.GetListsByUUIDs(listUUIDs)
+			if err == nil && len(lists) > 0 {
+				listIDs := make([]int, len(lists))
+				for i, l := range lists {
+					listIDs[i] = l.ID
+				}
+				_ = c.h.TriggerAutoresponders(sub, listIDs, true) // isConfirmation=true
+			}
+		}
 	}
 
 	return nil

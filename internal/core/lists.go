@@ -118,6 +118,18 @@ func (c *Core) GetListsByOptin(ids []int, optinType string) ([]models.List, erro
 	return out, nil
 }
 
+// GetListsByUUIDs returns lists by their UUIDs.
+func (c *Core) GetListsByUUIDs(uuids []string) ([]models.List, error) {
+	out := []models.List{}
+	if err := c.q.GetListsByOptin.Select(&out, "", nil, pq.StringArray(uuids)); err != nil {
+		c.log.Printf("error fetching lists by UUIDs: %s", pqErrMsg(err))
+		return nil, echo.NewHTTPError(http.StatusInternalServerError,
+			c.i18n.Ts("globals.messages.errorFetching", "name", "{globals.terms.list}", "error", pqErrMsg(err)))
+	}
+
+	return out, nil
+}
+
 // GetListTypes returns lists by their IDs or UUIDs.
 // If ids is given, then the map returned has the list IDs as keys,
 // otherwise, they have UUIDs as the keys.

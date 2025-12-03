@@ -31,6 +31,14 @@ func (c *Core) AddSubscriptions(subIDs, listIDs []int, status string) error {
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.subscribers}", "error", err.Error()))
 	}
 
+	// Trigger autoresponders for confirmed subscriptions (single subscriber only for efficiency).
+	if c.h.TriggerAutoresponders != nil && status == models.SubscriptionStatusConfirmed && len(subIDs) == 1 && len(listIDs) > 0 {
+		sub, err := c.GetSubscriber(subIDs[0], "", "")
+		if err == nil {
+			_ = c.h.TriggerAutoresponders(sub, listIDs, false) // isConfirmation=false
+		}
+	}
+
 	return nil
 }
 

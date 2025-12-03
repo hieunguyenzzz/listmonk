@@ -53,6 +53,7 @@ type Constants struct {
 type Hooks struct {
 	SendOptinConfirmation func(models.Subscriber, []int) (int, error)
 	DispatchWebhook       func(event string, data any)
+	TriggerAutoresponders func(sub models.Subscriber, listIDs []int, isConfirmation bool) error
 }
 
 // Opt contains the controllers required to start the core.
@@ -86,6 +87,13 @@ func New(o *Opt, h *Hooks) *Core {
 		q:      o.Queries,
 		log:    o.Log,
 	}
+}
+
+// SetAutoresponderHook sets the autoresponder trigger hook.
+// This is called after the campaign manager is initialized since the hook
+// requires both core and manager.
+func (c *Core) SetAutoresponderHook(fn func(sub models.Subscriber, listIDs []int, isConfirmation bool) error) {
+	c.h.TriggerAutoresponders = fn
 }
 
 // RefreshMatViews refreshes all materialized views.

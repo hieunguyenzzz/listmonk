@@ -1,0 +1,88 @@
+# Multi-stage Dockerfile for building listmonk from source
+# Stage 1: Build frontend
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app
+
+# Copy frontend files
+COPY frontend/package.json frontend/yarn.lock ./frontend/
+COPY frontend/email-builder/package.json frontend/email-builder/yarn.lock ./frontend/email-builder/
+
+# Create directory needed by postinstall script
+RUN mkdir -p static/public/static
+
+# Install dependencies (ignore postinstall since we handle altcha separately)
+RUN cd frontend && yarn install --frozen-lockfile --ignore-scripts
+RUN cd frontend/email-builder && yarn install --frozen-lockfile
+
+# Copy altcha manually after install
+RUN cp frontend/node_modules/altcha/dist/altcha.umd.cjs static/public/static/altcha.umd.js
+
+# Copy all frontend source
+COPY frontend ./frontend
+
+# Create empty .gitignore for eslint (the real one is in .dockerignore)
+RUN touch frontend/.gitignore
+
+# Build email builder first
+RUN cd frontend/email-builder && yarn build
+RUN mkdir -p frontend/public/static/email-builder && \
+    cp -r frontend/email-builder/dist/* frontend/public/static/email-builder/
+
+# Build main frontend
+RUN cd frontend && yarn build
+
+# Stage 2: Build Go backend
+FROM golang:1.24-alpine AS backend-builder
+
+RUN apk add --no-cache git make
+
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Install stuffbin
+RUN go install github.com/knadh/stuffbin/...
+
+# Copy source files
+COPY . .
+
+# Copy built frontend from previous stage
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY --from=frontend-builder /app/frontend/public/static/email-builder ./frontend/public/static/email-builder
+
+# Get version info
+ARG VERSION=dev
+ARG COMMIT=unknown
+
+# Build the binary
+RUN CGO_ENABLED=0 go build -o listmonk -ldflags="-s -w -X 'main.buildString=${VERSION} (#${COMMIT})' -X 'main.versionString=${VERSION}'" cmd/*.go
+
+# Bundle static assets
+RUN stuffbin -a stuff -in listmonk -out listmonk \
+    config.toml.sample \
+    schema.sql queries:/queries permissions.json \
+    static/public:/public \
+    static/email-templates \
+    frontend/dist:/admin \
+    i18n:/i18n
+
+# Stage 3: Final runtime image
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates tzdata shadow su-exec
+
+WORKDIR /listmonk
+
+COPY --from=backend-builder /app/listmonk .
+COPY config.toml.sample config.toml
+COPY docker-entrypoint.sh /usr/local/bin/
+
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+EXPOSE 9000
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["./listmonk"]

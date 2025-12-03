@@ -269,6 +269,11 @@ func (a *App) CreateCampaign(c echo.Context) error {
 			return err
 		}
 		o = op
+	case models.CampaignTypeAutoresponder:
+		// Autoresponders must have exactly one list.
+		if len(o.ListIDs) != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("campaigns.autoresponderSingleList"))
+		}
 	case "":
 		o.Type = models.CampaignTypeRegular
 	}
@@ -291,6 +296,17 @@ func (a *App) CreateCampaign(c echo.Context) error {
 	out, err := a.core.CreateCampaign(o.Campaign, o.ListIDs, o.MediaIDs)
 	if err != nil {
 		return err
+	}
+
+	// Autoresponders should be set to 'running' status immediately.
+	// They are always-on campaigns that trigger on subscription events.
+	if o.Type == models.CampaignTypeAutoresponder {
+		if updated, err := a.core.UpdateCampaignStatus(out.ID, models.CampaignStatusRunning); err != nil {
+			a.log.Printf("error setting autoresponder status: %v", err)
+			// Not a fatal error, campaign was created successfully
+		} else {
+			out = updated
+		}
 	}
 
 	return c.JSON(http.StatusOK, okResp{out})

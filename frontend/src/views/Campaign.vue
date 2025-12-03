@@ -81,6 +81,28 @@
                 <list-selector v-model="form.lists" :selected="form.lists" :all="lists.results" :disabled="!canEdit"
                   :label="$t('globals.terms.lists')" :placeholder="$t('campaigns.sendToLists')" />
 
+                <div class="columns" v-if="isNew">
+                  <div class="column is-6">
+                    <b-field :label="$t('campaigns.campaignType')" label-position="on-border">
+                      <b-select v-model="form.type" :disabled="!canEdit" expanded>
+                        <option value="regular">{{ $t('campaigns.types.regular') }}</option>
+                        <option value="autoresponder">{{ $t('campaigns.types.autoresponder') }}</option>
+                      </b-select>
+                    </b-field>
+                  </div>
+                  <div class="column is-6" v-if="form.type === 'autoresponder'">
+                    <b-field :label="$t('campaigns.autoresponder.trigger')" label-position="on-border">
+                      <b-select v-model="form.arTriggerOnConfirm" :disabled="!canEdit" expanded>
+                        <option :value="false">{{ $t('campaigns.autoresponder.onSubscription') }}</option>
+                        <option :value="true">{{ $t('campaigns.autoresponder.onConfirmation') }}</option>
+                      </b-select>
+                    </b-field>
+                  </div>
+                </div>
+                <b-message v-if="form.type === 'autoresponder'" type="is-info" size="is-small">
+                  {{ $t('campaigns.autoresponder.help') }}
+                </b-message>
+
                 <div class="columns">
                   <div class="column is-6">
                     <b-field :label="$tc('globals.terms.messenger')" label-position="on-border">
@@ -364,6 +386,8 @@ export default Vue.extend({
         headersStr: '[]',
         headers: [],
         messenger: 'email',
+        type: 'regular',
+        arTriggerOnConfirm: true,
         lists: [],
         tags: [],
         sendAt: null,
@@ -546,7 +570,8 @@ export default Vue.extend({
         from_email: this.form.fromEmail,
         content_type: this.form.content.contentType,
         messenger: this.form.messenger,
-        type: 'regular',
+        type: this.form.type,
+        ar_trigger_on_confirm: this.form.arTriggerOnConfirm,
         tags: this.form.tags,
         send_at: this.form.sendLater ? this.form.sendAtDate : null,
         headers: this.form.headers,
@@ -567,7 +592,8 @@ export default Vue.extend({
         lists: this.form.lists.map((l) => l.id),
         from_email: this.form.fromEmail,
         messenger: this.form.messenger,
-        type: 'regular',
+        type: this.form.type || 'regular',
+        ar_trigger_on_confirm: this.form.arTriggerOnConfirm,
         tags: this.form.tags,
         send_at: this.form.sendLater ? this.form.sendAtDate : null,
         headers: this.form.headers,
