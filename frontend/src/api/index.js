@@ -113,6 +113,10 @@ export const getDashboardCharts = () => http.get(
   { loading: models.dashboard },
 );
 
+export const getWebhookStats = () => http.get(
+  '/api/webhooks/stats',
+);
+
 // Lists.
 export const getLists = (params) => http.get(
   '/api/lists',

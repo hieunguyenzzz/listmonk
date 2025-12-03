@@ -115,6 +115,62 @@
                 </div>
               </article><!-- subscribers -->
             </div>
+
+            <div class="tile is-parent relative" v-if="webhookStats.length > 0">
+              <b-loading v-if="isWebhooksLoading" active :is-full-page="false" />
+              <article class="tile is-child notification" data-cy="webhooks">
+                <div class="columns is-mobile">
+                  <div class="column is-6">
+                    <p class="title">
+                      <b-icon icon="webhook" />
+                      {{ webhookStats.length }}
+                    </p>
+                    <p class="is-size-6 has-text-grey">
+                      {{ $t('dashboard.webhooks') }}
+                    </p>
+                  </div>
+                  <div class="column is-6">
+                    <ul class="no has-text-grey">
+                      <li>
+                        <label for="#">{{ $utils.niceNumber(webhookTotals().dispatched) }}</label>
+                        {{ $t('dashboard.webhooksDispatched') }}
+                      </li>
+                      <li>
+                        <label for="#" class="has-text-success">{{ $utils.niceNumber(webhookTotals().success) }}</label>
+                        {{ $t('dashboard.webhooksSuccess') }}
+                      </li>
+                      <li>
+                        <label for="#" :class="{'has-text-danger': webhookTotals().failed > 0}">
+                          {{ $utils.niceNumber(webhookTotals().failed) }}
+                        </label>
+                        {{ $t('dashboard.webhooksFailed') }}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+                <hr />
+                <div class="webhook-endpoints">
+                  <div v-for="stat in webhookStats" :key="stat.name" class="columns is-mobile is-size-7">
+                    <div class="column is-6">
+                      <strong>{{ stat.name }}</strong>
+                    </div>
+                    <div class="column is-3 has-text-right">
+                      <span :class="{'has-text-success': successRate(stat) >= 90, 'has-text-warning': successRate(stat) >= 50 && successRate(stat) < 90, 'has-text-danger': successRate(stat) < 50 && stat.totalDispatched > 0}">
+                        {{ successRate(stat) }}%
+                      </span>
+                      ({{ stat.totalSuccess }}/{{ stat.totalDispatched }})
+                    </div>
+                    <div class="column is-3 has-text-right has-text-grey">
+                      {{ formatRelativeTime(stat.lastDispatch) }}
+                    </div>
+                  </div>
+                </div>
+                <div v-if="webhookTotals().failed > 0" class="has-text-danger is-size-7 mt-2">
+                  <b-icon icon="alert-circle-outline" size="is-small" />
+                  {{ webhookStats.find(s => s.lastError)?.lastError || '' }}
+                </div>
+              </article><!-- webhooks -->
+            </div>
           </div>
           <div class="tile is-parent relative">
             <b-loading v-if="isChartsLoading" active :is-full-page="false" />
@@ -150,10 +206,13 @@
 
 <script>
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import Vue from 'vue';
 import { mapState } from 'vuex';
 import { colors } from '../constants';
 import Chart from '../components/Chart.vue';
+
+dayjs.extend(relativeTime);
 
 export default Vue.extend({
   components: {
@@ -164,6 +223,7 @@ export default Vue.extend({
     return {
       isChartsLoading: true,
       isCountsLoading: true,
+      isWebhooksLoading: true,
       campaignViews: null,
       campaignClicks: null,
       counts: {
@@ -172,6 +232,7 @@ export default Vue.extend({
         campaigns: {},
         messages: 0,
       },
+      webhookStats: [],
     };
   },
 
@@ -192,6 +253,29 @@ export default Vue.extend({
           },
         ],
       };
+    },
+
+    webhookTotals() {
+      return this.webhookStats.reduce(
+        (acc, s) => ({
+          dispatched: acc.dispatched + s.totalDispatched,
+          success: acc.success + s.totalSuccess,
+          failed: acc.failed + s.totalFailed,
+        }),
+        { dispatched: 0, success: 0, failed: 0 },
+      );
+    },
+
+    formatRelativeTime(timestamp) {
+      if (!timestamp || timestamp === '0001-01-01T00:00:00Z') {
+        return '-';
+      }
+      return dayjs(timestamp).fromNow();
+    },
+
+    successRate(stat) {
+      if (stat.totalDispatched === 0) return 0;
+      return Math.round((stat.totalSuccess / stat.totalDispatched) * 100);
     },
   },
 
@@ -214,6 +298,12 @@ export default Vue.extend({
       this.isChartsLoading = false;
       this.campaignViews = this.makeChart(data.campaignViews);
       this.campaignClicks = this.makeChart(data.linkClicks);
+    });
+
+    // Pull webhook stats.
+    this.$api.getWebhookStats().then((data) => {
+      this.webhookStats = data || [];
+      this.isWebhooksLoading = false;
     });
   },
 });

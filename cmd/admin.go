@@ -101,6 +101,14 @@ func (a *App) GetDashboardCounts(c echo.Context) error {
 	return c.JSON(http.StatusOK, okResp{out})
 }
 
+// GetWebhookStats returns webhook dispatch statistics.
+func (a *App) GetWebhookStats(c echo.Context) error {
+	if a.webhooks == nil {
+		return c.JSON(http.StatusOK, okResp{[]any{}})
+	}
+	return c.JSON(http.StatusOK, okResp{a.webhooks.GetStats()})
+}
+
 // ReloadApp sends a reload signal to the app, causing a full restart.
 func (a *App) ReloadApp(c echo.Context) error {
 	go func() {

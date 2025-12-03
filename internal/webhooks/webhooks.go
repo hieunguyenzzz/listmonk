@@ -9,6 +9,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -62,6 +64,18 @@ type Opt struct {
 	Timeout  time.Duration
 }
 
+// EndpointStats holds metrics for a single endpoint.
+type EndpointStats struct {
+	Name            string    `json:"name"`
+	URL             string    `json:"url"`
+	TotalDispatched int64     `json:"total_dispatched"`
+	TotalSuccess    int64     `json:"total_success"`
+	TotalFailed     int64     `json:"total_failed"`
+	LastDispatch    time.Time `json:"last_dispatch,omitempty"`
+	LastError       string    `json:"last_error,omitempty"`
+	LastErrorTime   time.Time `json:"last_error_time,omitempty"`
+}
+
 // endpoint represents a configured webhook endpoint.
 type endpoint struct {
 	uuid   string
@@ -70,6 +84,15 @@ type endpoint struct {
 	secret string
 	events map[string]bool
 	client *http.Client
+
+	// Stats tracking.
+	totalDispatched atomic.Int64
+	totalSuccess    atomic.Int64
+	totalFailed     atomic.Int64
+	lastDispatch    time.Time
+	lastError       string
+	lastErrorTime   time.Time
+	mu              sync.RWMutex
 }
 
 // dispatchJob represents a job to dispatch a webhook.
@@ -179,9 +202,16 @@ func (m *Manager) Dispatch(event string, data any) {
 
 // send performs the actual HTTP POST to the endpoint.
 func (m *Manager) send(ep *endpoint, payload []byte) {
+	// Track dispatch attempt.
+	ep.totalDispatched.Add(1)
+	ep.mu.Lock()
+	ep.lastDispatch = time.Now()
+	ep.mu.Unlock()
+
 	req, err := http.NewRequest(http.MethodPost, ep.url, bytes.NewReader(payload))
 	if err != nil {
 		m.log.Printf("webhook: error creating request for %s: %v", ep.name, err)
+		ep.recordError(err.Error())
 		return
 	}
 
@@ -197,6 +227,7 @@ func (m *Manager) send(ep *endpoint, payload []byte) {
 	resp, err := ep.client.Do(req)
 	if err != nil {
 		m.log.Printf("webhook: error sending to %s: %v", ep.name, err)
+		ep.recordError(err.Error())
 		return
 	}
 	defer func() {
@@ -207,7 +238,21 @@ func (m *Manager) send(ep *endpoint, payload []byte) {
 
 	if resp.StatusCode >= 400 {
 		m.log.Printf("webhook: non-OK response from %s: %d", ep.name, resp.StatusCode)
+		ep.recordError("HTTP " + http.StatusText(resp.StatusCode))
+		return
 	}
+
+	// Success.
+	ep.totalSuccess.Add(1)
+}
+
+// recordError records a failure and the error message.
+func (ep *endpoint) recordError(errMsg string) {
+	ep.totalFailed.Add(1)
+	ep.mu.Lock()
+	ep.lastError = errMsg
+	ep.lastErrorTime = time.Now()
+	ep.mu.Unlock()
 }
 
 // computeHMAC generates the HMAC-SHA256 signature.
@@ -225,4 +270,24 @@ func (m *Manager) Close() {
 // HasEndpoints returns true if there are any configured endpoints.
 func (m *Manager) HasEndpoints() bool {
 	return len(m.endpoints) > 0
+}
+
+// GetStats returns statistics for all endpoints.
+func (m *Manager) GetStats() []EndpointStats {
+	stats := make([]EndpointStats, len(m.endpoints))
+	for i, ep := range m.endpoints {
+		ep.mu.RLock()
+		stats[i] = EndpointStats{
+			Name:            ep.name,
+			URL:             ep.url,
+			TotalDispatched: ep.totalDispatched.Load(),
+			TotalSuccess:    ep.totalSuccess.Load(),
+			TotalFailed:     ep.totalFailed.Load(),
+			LastDispatch:    ep.lastDispatch,
+			LastError:       ep.lastError,
+			LastErrorTime:   ep.lastErrorTime,
+		}
+		ep.mu.RUnlock()
+	}
+	return stats
 }
