@@ -50,6 +50,7 @@ nav:
     - "Querying and segmenting subscribers": querying-and-segmentation.md
     - "Bounce processing": bounces.md
     - "Messengers": "messengers.md"
+    - "Webhooks": "webhooks.md"
     - "Archives": "archives.md"
     - "Internationalization": "i18n.md"
     - "Integrating with external systems": external-integration.md
