@@ -11,6 +11,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/listmonk/internal/auth"
+	"github.com/knadh/listmonk/internal/webhooks"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
@@ -345,6 +346,14 @@ func (c *Core) InsertSubscriber(sub models.Subscriber, listIDs []int, listUUIDs 
 		hasOptin = num > 0
 	}
 
+	// Dispatch webhook event.
+	if c.h.DispatchWebhook != nil {
+		c.h.DispatchWebhook(webhooks.EventSubscriberCreated, map[string]any{
+			"subscriber": out,
+			"list_ids":   listIDs,
+		})
+	}
+
 	return out, hasOptin, nil
 }
 
@@ -444,6 +453,13 @@ func (c *Core) BlocklistSubscribers(subIDs []int) error {
 			c.i18n.Ts("subscribers.errorBlocklisting", "error", err.Error()))
 	}
 
+	// Dispatch webhook event.
+	if c.h.DispatchWebhook != nil {
+		c.h.DispatchWebhook(webhooks.EventSubscriberBlocklisted, map[string]any{
+			"subscriber_ids": subIDs,
+		})
+	}
+
 	return nil
 }
 
@@ -471,6 +487,14 @@ func (c *Core) DeleteSubscribers(subIDs []int, subUUIDs []string) error {
 		c.log.Printf("error deleting subscribers: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorDeleting", "name", "{globals.terms.subscribers}", "error", pqErrMsg(err)))
+	}
+
+	// Dispatch webhook event.
+	if c.h.DispatchWebhook != nil {
+		c.h.DispatchWebhook(webhooks.EventSubscriberDeleted, map[string]any{
+			"subscriber_ids":   subIDs,
+			"subscriber_uuids": subUUIDs,
+		})
 	}
 
 	return nil
@@ -509,6 +533,14 @@ func (c *Core) ConfirmOptionSubscription(subUUID string, listUUIDs []string, met
 		c.log.Printf("error confirming subscription: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.subscribers}", "error", pqErrMsg(err)))
+	}
+
+	// Dispatch webhook event.
+	if c.h.DispatchWebhook != nil {
+		c.h.DispatchWebhook(webhooks.EventSubscriberConfirmed, map[string]any{
+			"subscriber_uuid": subUUID,
+			"list_uuids":      listUUIDs,
+		})
 	}
 
 	return nil

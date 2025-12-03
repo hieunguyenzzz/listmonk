@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/knadh/listmonk/internal/webhooks"
 	"github.com/knadh/listmonk/models"
 	"github.com/paulbellamy/ratecounter"
 )
@@ -66,6 +67,19 @@ func (m *Manager) newPipe(c *models.Campaign) (*pipe, error) {
 	m.pipesMut.Lock()
 	m.pipes[c.ID] = p
 	m.pipesMut.Unlock()
+
+	// Dispatch webhook event for campaign started.
+	if m.cfg.DispatchWebhook != nil {
+		m.cfg.DispatchWebhook(webhooks.EventCampaignStarted, map[string]any{
+			"campaign": map[string]any{
+				"id":   c.ID,
+				"uuid": c.UUID,
+				"name": c.Name,
+				"type": c.Type,
+			},
+		})
+	}
+
 	return p, nil
 }
 
@@ -230,6 +244,19 @@ func (p *pipe) cleanup() {
 			p.m.log.Printf("error finishing campaign (%s): %v", p.camp.Name, err)
 		} else {
 			p.m.log.Printf("campaign (%s) finished", p.camp.Name)
+
+			// Dispatch webhook event for campaign finished.
+			if p.m.cfg.DispatchWebhook != nil {
+				p.m.cfg.DispatchWebhook(webhooks.EventCampaignFinished, map[string]any{
+					"campaign": map[string]any{
+						"id":   c.ID,
+						"uuid": c.UUID,
+						"name": c.Name,
+						"type": c.Type,
+						"sent": p.sent.Load(),
+					},
+				})
+			}
 		}
 	} else {
 		p.m.log.Printf("finish processing campaign (%s)", p.camp.Name)

@@ -71,6 +71,9 @@ func (a *App) GetSettings(c echo.Context) error {
 	for i := range s.Messengers {
 		s.Messengers[i].Password = strings.Repeat(pwdMask, utf8.RuneCountInString(s.Messengers[i].Password))
 	}
+	for i := range s.Webhooks {
+		s.Webhooks[i].Secret = strings.Repeat(pwdMask, utf8.RuneCountInString(s.Webhooks[i].Secret))
+	}
 
 	s.UploadS3AwsSecretAccessKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.UploadS3AwsSecretAccessKey))
 	s.SendgridKey = strings.Repeat(pwdMask, utf8.RuneCountInString(s.SendgridKey))
@@ -207,6 +210,22 @@ func (a *App) UpdateSettings(c echo.Context) error {
 
 		set.Messengers[i].Name = name
 		names[name] = true
+	}
+
+	// Webhooks.
+	for i, w := range set.Webhooks {
+		// UUID to keep track of secret changes similar to the SMTP logic above.
+		if w.UUID == "" {
+			set.Webhooks[i].UUID = uuid.Must(uuid.NewV4()).String()
+		}
+
+		if w.Secret == "" {
+			for _, c := range cur.Webhooks {
+				if w.UUID == c.UUID {
+					set.Webhooks[i].Secret = c.Secret
+				}
+			}
+		}
 	}
 
 	// S3 password?

@@ -26,6 +26,7 @@ import (
 	"github.com/knadh/listmonk/internal/media"
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/subimporter"
+	"github.com/knadh/listmonk/internal/webhooks"
 	"github.com/knadh/listmonk/models"
 	"github.com/knadh/paginator"
 	"github.com/knadh/stuffbin"
@@ -46,6 +47,7 @@ type App struct {
 	auth       *auth.Auth
 	media      media.Store
 	bounce     *bounce.Manager
+	webhooks   *webhooks.Manager
 	captcha    *captcha.Captcha
 	i18n       *i18n.I18n
 	pg         *paginator.Paginator
@@ -183,14 +185,17 @@ func main() {
 
 		fbOptinNotify = makeOptinNotifyHook(ko.Bool("privacy.unsubscribe_header"), urlCfg, queries, i18n)
 
+		// Initialize the event webhooks manager.
+		webhooksMgr = initWebhooks(ko, lo)
+
 		// Crud core.
-		core = initCore(fbOptinNotify, queries, db, i18n, ko)
+		core = initCore(fbOptinNotify, webhooksMgr, queries, db, i18n, ko)
 
 		// Initialize all messengers, SMTP and postback.
 		msgrs = append(initSMTPMessengers(), initPostbackMessengers(ko)...)
 
 		// Campaign manager.
-		mgr = initCampaignManager(msgrs, queries, urlCfg, core, media, i18n, ko)
+		mgr = initCampaignManager(msgrs, queries, urlCfg, core, media, webhooksMgr, i18n, ko)
 
 		// Bulk importer.
 		importer = initImporter(queries, db, core, i18n, ko)
@@ -254,6 +259,7 @@ func main() {
 		auth:       auth,
 		media:      media,
 		bounce:     bounce,
+		webhooks:   webhooksMgr,
 		captcha:    initCaptcha(),
 		i18n:       i18n,
 		log:        lo,
@@ -307,6 +313,11 @@ func main() {
 		// Close the messenger pool.
 		for _, m := range app.messengers {
 			m.Close()
+		}
+
+		// Close the webhooks manager.
+		if app.webhooks != nil {
+			app.webhooks.Close()
 		}
 
 		// Signal the close.

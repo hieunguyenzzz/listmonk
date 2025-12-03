@@ -141,6 +141,9 @@ type Config struct {
 	// (exposed to the internet, private etc.) where only one does campaign
 	// processing while the others handle other kinds of traffic.
 	ScanCampaigns bool
+
+	// DispatchWebhook is an optional callback for dispatching webhook events.
+	DispatchWebhook func(event string, data any)
 }
 
 var pushTimeout = time.Second * 3

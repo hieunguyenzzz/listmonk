@@ -16,6 +16,7 @@ import (
 	"github.com/knadh/listmonk/internal/i18n"
 	"github.com/knadh/listmonk/internal/manager"
 	"github.com/knadh/listmonk/internal/notifs"
+	"github.com/knadh/listmonk/internal/webhooks"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
@@ -549,6 +550,16 @@ func (a *App) LinkRedirect(c echo.Context) error {
 		return c.Render(e.Code, tplMessage, makeMsgTpl(a.i18n.T("public.errorTitle"), "", e.Error()))
 	}
 
+	// Dispatch webhook event.
+	if a.webhooks != nil {
+		a.webhooks.Dispatch(webhooks.EventLinkClick, map[string]any{
+			"link_uuid":       linkUUID,
+			"campaign_uuid":   campUUID,
+			"subscriber_uuid": subUUID,
+			"url":             url,
+		})
+	}
+
 	return c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -568,6 +579,12 @@ func (a *App) RegisterCampaignView(c echo.Context) error {
 	if campUUID != dummyUUID && subUUID != dummyUUID {
 		if err := a.core.RegisterCampaignView(campUUID, subUUID); err != nil {
 			a.log.Printf("error registering campaign view: %s", err)
+		} else if a.webhooks != nil {
+			// Dispatch webhook event on success.
+			a.webhooks.Dispatch(webhooks.EventEmailOpen, map[string]any{
+				"campaign_uuid":   campUUID,
+				"subscriber_uuid": subUUID,
+			})
 		}
 	}
 

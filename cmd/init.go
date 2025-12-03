@@ -45,6 +45,7 @@ import (
 	"github.com/knadh/listmonk/internal/media/providers/s3"
 	"github.com/knadh/listmonk/internal/messenger/email"
 	"github.com/knadh/listmonk/internal/messenger/postback"
+	"github.com/knadh/listmonk/internal/webhooks"
 	"github.com/knadh/listmonk/internal/notifs"
 	"github.com/knadh/listmonk/internal/subimporter"
 	"github.com/knadh/listmonk/models"
@@ -531,7 +532,7 @@ func initI18n(lang string, fs stuffbin.FileSystem) *i18n.I18n {
 }
 
 // initCore initializes the CRUD DB core .
-func initCore(fnNotify func(sub models.Subscriber, listIDs []int) (int, error), queries *models.Queries, db *sqlx.DB, i *i18n.I18n, ko *koanf.Koanf) *core.Core {
+func initCore(fnNotify func(sub models.Subscriber, listIDs []int) (int, error), wh *webhooks.Manager, queries *models.Queries, db *sqlx.DB, i *i18n.I18n, ko *koanf.Koanf) *core.Core {
 	opt := &core.Opt{
 		Constants: core.Constants{
 			SendOptinConfirmation: ko.Bool("app.send_optin_confirmation"),
@@ -548,16 +549,29 @@ func initCore(fnNotify func(sub models.Subscriber, listIDs []int) (int, error), 
 		lo.Fatalf("error unmarshalling bounce config: %v", err)
 	}
 
+	// Create the webhook dispatch function if webhooks are enabled.
+	var fnDispatchWebhook func(event string, data any)
+	if wh != nil {
+		fnDispatchWebhook = wh.Dispatch
+	}
+
 	// Initialize the CRUD core.
 	return core.New(opt, &core.Hooks{
 		SendOptinConfirmation: fnNotify,
+		DispatchWebhook:       fnDispatchWebhook,
 	})
 }
 
 // initCampaignManager initializes the campaign manager.
-func initCampaignManager(msgrs []manager.Messenger, q *models.Queries, u *UrlConfig, co *core.Core, md media.Store, i *i18n.I18n, ko *koanf.Koanf) *manager.Manager {
+func initCampaignManager(msgrs []manager.Messenger, q *models.Queries, u *UrlConfig, co *core.Core, md media.Store, wh *webhooks.Manager, i *i18n.I18n, ko *koanf.Koanf) *manager.Manager {
 	if ko.Bool("passive") {
 		lo.Println("running in passive mode. won't process campaigns.")
+	}
+
+	// Create the webhook dispatch function if webhooks are enabled.
+	var fnDispatchWebhook func(event string, data any)
+	if wh != nil {
+		fnDispatchWebhook = wh.Dispatch
 	}
 
 	mgr := manager.New(manager.Config{
@@ -580,6 +594,7 @@ func initCampaignManager(msgrs []manager.Messenger, q *models.Queries, u *UrlCon
 		SlidingWindowRate:     ko.Int("app.message_sliding_window_rate"),
 		ScanInterval:          time.Second * 5,
 		ScanCampaigns:         !ko.Bool("passive"),
+		DispatchWebhook:       fnDispatchWebhook,
 	}, newManagerStore(q, co, md), i, lo)
 
 	// Attach all messengers to the campaign manager.
@@ -714,6 +729,50 @@ func initPostbackMessengers(ko *koanf.Koanf) []manager.Messenger {
 	}
 
 	return out
+}
+
+// initWebhooks initializes the webhook manager for dispatching events to external URLs.
+func initWebhooks(ko *koanf.Koanf, lo *log.Logger) *webhooks.Manager {
+	items := ko.Slices("webhooks")
+	if len(items) == 0 {
+		return nil
+	}
+
+	var opts []webhooks.Opt
+	for _, item := range items {
+		if !item.Bool("enabled") {
+			continue
+		}
+
+		timeout, _ := time.ParseDuration(item.String("timeout"))
+		if timeout == 0 {
+			timeout = 5 * time.Second
+		}
+
+		opts = append(opts, webhooks.Opt{
+			UUID:     item.String("uuid"),
+			Name:     item.String("name"),
+			URL:      item.String("url"),
+			Secret:   item.String("secret"),
+			Events:   item.Strings("events"),
+			MaxConns: item.Int("max_conns"),
+			Timeout:  timeout,
+		})
+
+		lo.Printf("loaded webhook endpoint: %s", item.String("name"))
+	}
+
+	if len(opts) == 0 {
+		return nil
+	}
+
+	m, err := webhooks.New(opts, lo)
+	if err != nil {
+		lo.Printf("error initializing webhooks: %v", err)
+		return nil
+	}
+
+	return m
 }
 
 // initMediaStore initializes Upload manager with a custom backend.

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/knadh/listmonk/internal/webhooks"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
@@ -85,6 +86,15 @@ func (c *Core) UnsubscribeLists(subIDs, listIDs []int, listUUIDs []string) error
 		c.log.Printf("error unsubscribing from lists: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError,
 			c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.subscribers}", "error", err.Error()))
+	}
+
+	// Dispatch webhook event.
+	if c.h.DispatchWebhook != nil {
+		c.h.DispatchWebhook(webhooks.EventSubscriberUnsubscribed, map[string]any{
+			"subscriber_ids": subIDs,
+			"list_ids":       listIDs,
+			"list_uuids":     listUUIDs,
+		})
 	}
 
 	return nil

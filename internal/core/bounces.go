@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/knadh/listmonk/internal/webhooks"
 	"github.com/knadh/listmonk/models"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
@@ -81,9 +82,23 @@ func (c *Core) RecordBounce(b models.Bounce) error {
 		}
 
 		c.log.Printf("error recording bounce: %v", err)
+		return err
 	}
 
-	return err
+	// Dispatch webhook event.
+	if c.h.DispatchWebhook != nil {
+		c.h.DispatchWebhook(webhooks.EventBounce, map[string]any{
+			"bounce": map[string]any{
+				"type":            b.Type,
+				"source":          b.Source,
+				"email":           b.Email,
+				"subscriber_uuid": b.SubscriberUUID,
+				"campaign_uuid":   b.CampaignUUID,
+			},
+		})
+	}
+
+	return nil
 }
 
 // BlocklistBouncedSubscribers blocklists all bounced subscribers.

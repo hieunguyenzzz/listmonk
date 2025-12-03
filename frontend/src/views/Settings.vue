@@ -54,6 +54,10 @@
             <messenger-settings :form="form" :key="key" />
           </b-tab-item><!-- messengers -->
 
+          <b-tab-item :label="$t('settings.webhooks.name')">
+            <webhook-settings :form="form" :key="key" />
+          </b-tab-item><!-- webhooks -->
+
           <b-tab-item :label="$t('settings.appearance.name')">
             <appearance-settings :form="form" :key="key" />
           </b-tab-item><!-- appearance -->
@@ -75,6 +79,7 @@ import PerformanceSettings from './settings/performance.vue';
 import PrivacySettings from './settings/privacy.vue';
 import SecuritySettings from './settings/security.vue';
 import SmtpSettings from './settings/smtp.vue';
+import WebhookSettings from './settings/webhooks.vue';
 
 export default Vue.extend({
   components: {
@@ -86,6 +91,7 @@ export default Vue.extend({
     SmtpSettings,
     BounceSettings,
     MessengerSettings,
+    WebhookSettings,
     AppearanceSettings,
   },
 
@@ -187,6 +193,15 @@ export default Vue.extend({
         }
       }
 
+      for (let i = 0; i < form.webhooks.length; i += 1) {
+        // If it's the dummy UI password placeholder, ignore it.
+        if (this.isDummy(form.webhooks[i].secret)) {
+          form.webhooks[i].secret = '';
+        } else if (this.hasDummy(form.webhooks[i].secret)) {
+          hasDummy = `webhook #${i + 1}`;
+        }
+      }
+
       if (hasDummy) {
         this.$utils.toast(this.$t('globals.messages.passwordChangeFull', { name: hasDummy }), 'is-danger');
         return false;
@@ -222,6 +237,11 @@ export default Vue.extend({
         // Serialize the `email_headers` array map to display on the form.
         for (let i = 0; i < d.smtp.length; i += 1) {
           d.smtp[i].strEmailHeaders = JSON.stringify(d.smtp[i].email_headers, null, 4);
+        }
+
+        // Ensure webhooks array exists for existing installations.
+        if (!d.webhooks) {
+          d.webhooks = [];
         }
 
         // Domain blocklist array to multi-line string.
