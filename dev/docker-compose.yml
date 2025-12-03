@@ -64,6 +64,18 @@ services:
     networks:
       - listmonk-dev
 
+  webhook-receiver:
+    build:
+      context: ./webhook-receiver
+      dockerfile: Dockerfile
+    ports:
+      - "8888:8888"
+    environment:
+      - WEBHOOK_SECRET=test-secret
+      - PORT=8888
+    networks:
+      - listmonk-dev
+
 volumes:
   listmonk-dev-db:
 
