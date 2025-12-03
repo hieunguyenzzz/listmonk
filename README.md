@@ -8,6 +8,33 @@ listmonk is a standalone, self-hosted, newsletter and mailing list manager. It i
 
 Visit [listmonk.app](https://listmonk.app) for more info. Check out the [**live demo**](https://demo.listmonk.app).
 
+## New Features (v5.1.1)
+
+### Webhooks
+Send real-time HTTP notifications when events occur in listmonk:
+
+- **Subscriber events**: `subscriber.created`, `subscriber.updated`, `subscriber.deleted`, `subscriber.blocklisted`
+- **Subscription events**: `subscription.created`, `subscription.deleted`
+- **Campaign events**: `campaign.sent`, `campaign.started`, `campaign.completed`
+
+Configure webhooks in **Settings > Webhooks** with:
+- Custom endpoint URLs
+- Secret key for HMAC signature verification
+- Event filtering
+
+### Autoresponder / Drip Campaigns
+Automatically send emails when subscribers join a list:
+
+- Create campaigns with type **"Autoresponder"**
+- Choose trigger: **"Subscriber joins list"** or **"Subscriber confirms opt-in"** (for double opt-in lists)
+- Autoresponders stay active indefinitely and send to each new subscriber once
+- Track delivery history to prevent duplicate sends
+
+**Use cases:**
+- Welcome emails for new subscribers
+- Onboarding sequences
+- Lead magnet delivery
+
 ## Installation
 
 ### Docker
