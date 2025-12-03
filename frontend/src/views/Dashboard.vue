@@ -140,7 +140,7 @@
                         {{ $t('dashboard.webhooksSuccess') }}
                       </li>
                       <li>
-                        <label for="#" :class="{'has-text-danger': webhookTotals().failed > 0}">
+                        <label for="#" :class="{ 'has-text-danger': webhookTotals().failed > 0 }">
                           {{ $utils.niceNumber(webhookTotals().failed) }}
                         </label>
                         {{ $t('dashboard.webhooksFailed') }}
@@ -155,7 +155,7 @@
                       <strong>{{ stat.name }}</strong>
                     </div>
                     <div class="column is-3 has-text-right">
-                      <span :class="{'has-text-success': successRate(stat) >= 90, 'has-text-warning': successRate(stat) >= 50 && successRate(stat) < 90, 'has-text-danger': successRate(stat) < 50 && stat.totalDispatched > 0}">
+                      <span :class="successRateClass(stat)">
                         {{ successRate(stat) }}%
                       </span>
                       ({{ stat.totalSuccess }}/{{ stat.totalDispatched }})
@@ -276,6 +276,15 @@ export default Vue.extend({
     successRate(stat) {
       if (stat.totalDispatched === 0) return 0;
       return Math.round((stat.totalSuccess / stat.totalDispatched) * 100);
+    },
+
+    successRateClass(stat) {
+      const rate = this.successRate(stat);
+      return {
+        'has-text-success': rate >= 90,
+        'has-text-warning': rate >= 50 && rate < 90,
+        'has-text-danger': rate < 50 && stat.totalDispatched > 0,
+      };
     },
   },
 
