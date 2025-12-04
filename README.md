@@ -22,6 +22,33 @@ Configure webhooks in **Settings > Webhooks** with:
 - Secret key for HMAC signature verification
 - Event filtering
 
+#### Webhook API
+
+**GET /api/webhooks/stats** - Get webhook statistics
+```json
+{
+  "data": [{
+    "name": "My Webhook",
+    "url": "https://example.com/webhook",
+    "total_dispatched": 123,
+    "total_success": 120,
+    "total_failed": 3,
+    "last_dispatch": "2024-01-01T00:00:00Z"
+  }]
+}
+```
+
+**Webhook Payload Format:**
+```json
+{
+  "event": "subscriber.created",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "data": { ... }
+}
+```
+
+**Signature Header:** `X-Webhook-Signature: sha256={HMAC-SHA256 hex}`
+
 ### Autoresponder / Drip Campaigns
 Automatically send emails when subscribers join a list:
 
@@ -34,6 +61,37 @@ Automatically send emails when subscribers join a list:
 - Welcome emails for new subscribers
 - Onboarding sequences
 - Lead magnet delivery
+
+#### Campaign API
+
+**POST /api/campaigns** - Create a campaign
+```json
+{
+  "name": "Welcome Email",
+  "subject": "Welcome to our newsletter!",
+  "type": "regular|autoresponder",
+  "ar_trigger_on_confirm": true,
+  "lists": [1],
+  "content_type": "richtext",
+  "body": "<p>Hello {{ .Subscriber.FirstName }}!</p>",
+  "messenger": "email"
+}
+```
+
+**Campaign Types:**
+- `regular` - Standard one-time or scheduled campaign
+- `autoresponder` - Automatically sent when subscribers join a list
+
+**Autoresponder Settings:**
+- `ar_trigger_on_confirm: true` - Send when subscriber confirms opt-in (double opt-in)
+- `ar_trigger_on_confirm: false` - Send immediately when subscriber joins list
+
+**PUT /api/campaigns/:id/status** - Change campaign status
+```json
+{
+  "status": "draft|scheduled|running|paused|cancelled"
+}
+```
 
 ## Installation
 
