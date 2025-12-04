@@ -8,7 +8,7 @@ x-db-credentials: &db-credentials
 services:
   # listmonk app
   app:
-    image: hieunguyenzzz/listmonk:v5.1.1
+    image: hieunguyenzzz/listmonk:v5.1.2
     container_name: listmonk_app
     restart: unless-stopped
     ports:
