@@ -34,6 +34,13 @@
           <b-navbar-item href="#">
             <a href="#" @click.prevent="doLogout"><b-icon icon="logout-variant" /> {{ $t('users.logout') }}</a>
           </b-navbar-item>
+          <hr class="navbar-divider">
+          <b-navbar-item href="#">
+            <a href="#" @click.prevent="toggleTheme">
+              <b-icon :icon="theme === 'dark' ? 'weather-sunny' : 'weather-night'" />
+              {{ theme === 'dark' ? 'Light mode' : 'Dark mode' }}
+            </a>
+          </b-navbar-item>
         </b-navbar-dropdown>
       </template>
     </b-navbar>
@@ -121,6 +128,7 @@ export default Vue.extend({
       activeItem: {},
       activeGroup: {},
       windowWidth: window.innerWidth,
+      theme: localStorage.getItem('listmonk-theme') || 'light',
     };
   },
 
@@ -165,6 +173,12 @@ export default Vue.extend({
       });
     },
 
+    toggleTheme() {
+      this.theme = this.theme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('listmonk-theme', this.theme);
+      document.documentElement.setAttribute('data-theme', this.theme);
+    },
+
     listenEvents() {
       const reMatchLog = /(.+?)\.go:\d+:(.+?)$/im;
       const evtSource = new EventSource(uris.errorEvents, { withCredentials: true });
@@ -205,6 +219,9 @@ export default Vue.extend({
   },
 
   mounted() {
+    // Apply saved theme on load
+    document.documentElement.setAttribute('data-theme', this.theme);
+
     // Lists is required across different views. On app load, fetch the lists
     // and have them in the store.
     this.$api.getLists({ minimal: true, per_page: 'all', status: 'active' });
